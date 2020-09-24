@@ -15,8 +15,8 @@ template: |
   steps:
     - command: test.sh
       plugins:
-  -     docker#$PREVIOUS_TAG:
-  +     docker#v$NEXT_MINOR_VERSION:
+  -     podman#$PREVIOUS_TAG:
+  +     podman#v$NEXT_MINOR_VERSION:
           image: someimage
           workdir: /app
   ```

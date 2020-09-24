@@ -1,8 +1,8 @@
-name: Docker
-description: Runs your build steps in Docker containers
-author: https://github.com/buildkite
+name: podman
+description: Runs your build steps in podman containers
+author: https://github.com/compono
 requirements:
-  - docker
+  - podman
 configuration:
   properties:
     add-host:

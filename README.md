@@ -1,19 +1,19 @@
-# Docker Buildkite Plugin [![Build status](https://badge.buildkite.com/b813517b8bb70d455106a03fbfbb1986477deb7c68f9ffcf59.svg?branch=master)](https://buildkite.com/buildkite/plugins-docker)
+# Podman Buildkite Plugin [![Build status](https://badge.buildkite.com/b813517b8bb70d455106a03fbfbb1986477deb7c68f9ffcf59.svg?branch=master)](https://buildkite.com/buildkite/plugins-docker)
 
-A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) for running pipeline steps in [Docker](https://www.docker.com/) containers.
+A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) for running pipeline steps in [podman](https://podman.io/) containers.
 
-Also see the [Docker Compose Buildkite Plugin](https://github.com/buildkite-plugins/docker-compose-buildkite-plugin) which supports building images, `docker-compose.yml`, multiple containers, and overriding many of Docker’s defaults.
+Also see the [Podman Compose Buildkite Plugin](https://github.com/compono/podman-compose-buildkite-plugin) which supports building images, `podman-compose.yml`, multiple containers, and overriding many of podman’s defaults.
 
 ## Example
 
-The following pipeline will build a binary in the dist directory using [golang Docker image](https://hub.docker.com/_/golang/) and then uploaded as an artifact.
+The following pipeline will build a binary in the dist directory using [golang container image](https://hub.docker.com/_/golang/) and then uploaded as an artifact.
 
 ```yml
 steps:
   - command: "go build -o dist/my-app ."
     artifact_paths: "./dist/my-app"
     plugins:
-      - docker#v3.5.0:
+      - ssh://git@github.com/compono/podman-buildkite-plugin.git#v1.0.0:
           image: "golang:1.11"
 ```
 
@@ -23,7 +23,7 @@ Windows images are also supported:
 steps:
   - command: "dotnet publish -c Release -o published"
     plugins:
-      - docker#v3.5.0:
+      - ssh://git@github.com/compono/podman-buildkite-plugin.git#v1.0.0:
           image: "microsoft/dotnet:latest"
           always-pull: true
 ```
@@ -33,7 +33,7 @@ If you want to control how your command is passed to the docker container, you c
 ```yml
 steps:
   - plugins:
-      - docker#v3.5.0:
+      - ssh://git@github.com/compono/podman-buildkite-plugin.git#v1.0.0:
           image: "mesosphere/aws-cli"
           always-pull: true
           command: ["s3", "sync", "s3://my-bucket/dist/", "/app/dist"]
@@ -48,7 +48,7 @@ steps:
       - "yarn install"
       - "yarn run test"
     plugins:
-      - docker#v3.5.0:
+      - ssh://git@github.com/compono/podman-buildkite-plugin.git#v1.0.0:
           image: "node:7"
           always-pull: true
           environment:
@@ -66,7 +66,7 @@ steps:
     env:
       MY_SPECIAL_BUT_PUBLIC_VALUE: kittens
     plugins:
-      - docker#v3.5.0:
+      - ssh://git@github.com/compono/podman-buildkite-plugin.git#v1.0.0:
           image: "node:7"
           always-pull: true
           propagate-environment: true
@@ -80,7 +80,7 @@ steps:
       - "docker build . -t image:tag"
       - "docker push image:tag"
     plugins:
-      - docker#v3.5.0:
+      - ssh://git@github.com/compono/podman-buildkite-plugin.git#v1.0.0:
           image: "docker:latest"
           always-pull: true
           volumes:
@@ -93,7 +93,7 @@ You can disable the default behaviour of mounting in the checkout to `workdir`:
 steps:
   - command: "npm start"
     plugins:
-      - docker#v3.5.0:
+      - ssh://git@github.com/compono/podman-buildkite-plugin.git#v1.0.0:
           image: "node:7"
           always-pull: true
           mount-checkout: false
@@ -105,7 +105,7 @@ steps:
 
 ### `image` (required, string)
 
-The name of the Docker image to use.
+The name of the container image to use.
 
 Example: `node:7`
 

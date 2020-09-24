@@ -46,7 +46,7 @@ plugin_read_list_into_result() {
   [[ ${#result[@]} -gt 0 ]] || return 1
 }
 
-# docker's -v arguments don't do local path expansion, so we add very simple support for .
+# podman's -v arguments don't do local path expansion, so we add very simple support for .
 expand_relative_volume_path() {
   local path="$1"
   if [[ $path =~ ^\.: ]] ; then
@@ -89,7 +89,7 @@ fi
 args=()
 
 # Support switching tty off
-if [[ "${BUILDKITE_PLUGIN_DOCKER_TTY:-$tty_default}" =~ ^(true|on|1)$ ]] ; then
+if [[ "${BUILDKITE_PLUGIN_PODMAN_TTY:-$tty_default}" =~ ^(true|on|1)$ ]] ; then
   args+=("-it")
 else
   args+=("-i")
@@ -97,13 +97,13 @@ fi
 
 args+=("--rm")
 
-# Support docker run --init.
-if [[ "${BUILDKITE_PLUGIN_DOCKER_INIT:-$init_default}" =~ ^(true|on|1)$ ]] ; then
+# Support podman run --init.
+if [[ "${BUILDKITE_PLUGIN_PODMAN_INIT:-$init_default}" =~ ^(true|on|1)$ ]] ; then
     args+=("--init")
 fi
 
 # Parse tmpfs property.
-if plugin_read_list_into_result BUILDKITE_PLUGIN_DOCKER_TMPFS ; then
+if plugin_read_list_into_result BUILDKITE_PLUGIN_PODMAN_TMPFS ; then
   for arg in "${result[@]}" ; do
     args+=( "--tmpfs" "$(expand_relative_volume_path "${arg}")" )
   done
@@ -111,83 +111,83 @@ fi
 
 workdir=''
 
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_WORKDIR:-}" ]] || [[ "${BUILDKITE_PLUGIN_DOCKER_MOUNT_CHECKOUT:-on}" =~ ^(true|on|1)$ ]] ; then
-  workdir="${BUILDKITE_PLUGIN_DOCKER_WORKDIR:-$workdir_default}"
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_WORKDIR:-}" ]] || [[ "${BUILDKITE_PLUGIN_PODMAN_MOUNT_CHECKOUT:-on}" =~ ^(true|on|1)$ ]] ; then
+  workdir="${BUILDKITE_PLUGIN_PODMAN_WORKDIR:-$workdir_default}"
 fi
 
 # By default, mount $PWD onto $WORKDIR
-if [[ "${BUILDKITE_PLUGIN_DOCKER_MOUNT_CHECKOUT:-on}" =~ ^(true|on|1)$ ]] ; then
+if [[ "${BUILDKITE_PLUGIN_PODMAN_MOUNT_CHECKOUT:-on}" =~ ^(true|on|1)$ ]] ; then
   args+=( "--volume" "${pwd_default}:${workdir}" )
 fi
 
-# Parse volumes (and deprecated mounts) and add them to the docker args
-if plugin_read_list_into_result BUILDKITE_PLUGIN_DOCKER_VOLUMES BUILDKITE_PLUGIN_DOCKER_MOUNTS ; then
+# Parse volumes (and deprecated mounts) and add them to the podman args
+if plugin_read_list_into_result BUILDKITE_PLUGIN_PODMAN_VOLUMES BUILDKITE_PLUGIN_PODMAN_MOUNTS ; then
   for arg in "${result[@]}" ; do
     args+=( "--volume" "$(expand_relative_volume_path "${arg}")" )
   done
 fi
 
-# Parse devices and add them to the docker args
-if plugin_read_list_into_result BUILDKITE_PLUGIN_DOCKER_DEVICES ; then
+# Parse devices and add them to the podman args
+if plugin_read_list_into_result BUILDKITE_PLUGIN_PODMAN_DEVICES ; then
   for arg in "${result[@]}" ; do
     args+=( "--device" "${arg}" )
   done
 fi
 
-# Parse sysctl args and add them to docker args
-if plugin_read_list_into_result BUILDKITE_PLUGIN_DOCKER_SYSCTLS ; then
+# Parse sysctl args and add them to podman args
+if plugin_read_list_into_result BUILDKITE_PLUGIN_PODMAN_SYSCTLS ; then
   for arg in "${result[@]}" ; do
     args+=( "--sysctl" "$arg" )
   done
 fi
 
 # Set workdir if one is provided or if the checkout is mounted
-if [[ -n "${workdir:-}" ]] || [[ "${BUILDKITE_PLUGIN_DOCKER_MOUNT_CHECKOUT:-on}" =~ ^(true|on|1)$ ]]; then
+if [[ -n "${workdir:-}" ]] || [[ "${BUILDKITE_PLUGIN_PODMAN_MOUNT_CHECKOUT:-on}" =~ ^(true|on|1)$ ]]; then
   args+=("--workdir" "${workdir}")
 fi
 
-# Support docker run --user
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_USER:-}" ]] && [[ -n "${BUILDKITE_PLUGIN_DOCKER_PROPAGATE_UID_GID:-}" ]]; then
+# Support podman run --user
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_USER:-}" ]] && [[ -n "${BUILDKITE_PLUGIN_PODMAN_PROPAGATE_UID_GID:-}" ]]; then
   echo "+++ Error: Can't set both user and propagate-uid-gid"
   exit 1
 fi
 
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_USER:-}" ]] ; then
-  args+=("-u" "${BUILDKITE_PLUGIN_DOCKER_USER:-}")
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_USER:-}" ]] ; then
+  args+=("-u" "${BUILDKITE_PLUGIN_PODMAN_USER:-}")
 fi
 
-# Parse publish args and add them to docker args
-if plugin_read_list_into_result BUILDKITE_PLUGIN_DOCKER_PUBLISH ; then
+# Parse publish args and add them to podman args
+if plugin_read_list_into_result BUILDKITE_PLUGIN_PODMAN_PUBLISH ; then
   for arg in "${result[@]}" ; do
     args+=( "--publish" "$arg" )
   done
 fi
 
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_PROPAGATE_UID_GID:-}" ]] ; then
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_PROPAGATE_UID_GID:-}" ]] ; then
   args+=("-u" "$(id -u):$(id -g)")
 fi
 
-# Support docker run --group-add
+# Support podman run --group-add
 while IFS='=' read -r name _ ; do
-  if [[ $name =~ ^(BUILDKITE_PLUGIN_DOCKER_ADDITIONAL_GROUPS_[0-9]+) ]] ; then
+  if [[ $name =~ ^(BUILDKITE_PLUGIN_PODMAN_ADDITIONAL_GROUPS_[0-9]+) ]] ; then
     args+=( "--group-add" "${!name}" )
   fi
 done < <(env | sort)
 
-# Support docker run --userns
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_USERNS:-}" ]]; then
-  # However, if BUILDKITE_PLUGIN_DOCKER_PRIVILEGED is enabled, then userns MUST
-  # be overridden to host per limitations of docker
-  # https://docs.docker.com/engine/security/userns-remap/#user-namespace-known-limitations
-  if [[ "${BUILDKITE_PLUGIN_DOCKER_PRIVILEGED:-false}" =~ ^(true|on|1)$ ]] ; then
+# Support podman run --userns
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_USERNS:-}" ]]; then
+  # However, if BUILDKITE_PLUGIN_PODMAN_PRIVILEGED is enabled, then userns MUST
+  # be overridden to host per limitations of podman
+  # https://docs.podman.com/engine/security/userns-remap/#user-namespace-known-limitations
+  if [[ "${BUILDKITE_PLUGIN_PODMAN_PRIVILEGED:-false}" =~ ^(true|on|1)$ ]] ; then
       args+=("--userns" "host")
   else
-      args+=("--userns" "${BUILDKITE_PLUGIN_DOCKER_USERNS:-}")
+      args+=("--userns" "${BUILDKITE_PLUGIN_PODMAN_USERNS:-}")
   fi
 fi
 
 # Mount ssh-agent socket and known_hosts
-if [[ "${BUILDKITE_PLUGIN_DOCKER_MOUNT_SSH_AGENT:-$mount_ssh_agent}" =~ ^(true|on|1)$ ]] ; then
+if [[ "${BUILDKITE_PLUGIN_PODMAN_MOUNT_SSH_AGENT:-$mount_ssh_agent}" =~ ^(true|on|1)$ ]] ; then
   if [[ -z "${SSH_AUTH_SOCK:-}" ]] ; then
     echo "+++ 🚨 \$SSH_AUTH_SOCK isn't set, has ssh-agent started?"
     exit 1
@@ -208,7 +208,7 @@ if [[ "${BUILDKITE_PLUGIN_DOCKER_MOUNT_SSH_AGENT:-$mount_ssh_agent}" =~ ^(true|o
 fi
 
 # Handle the mount-buildkite-agent option
-if [[ "${BUILDKITE_PLUGIN_DOCKER_MOUNT_BUILDKITE_AGENT:-$mount_agent_default}" =~ ^(true|on|1)$ ]] ; then
+if [[ "${BUILDKITE_PLUGIN_PODMAN_MOUNT_BUILDKITE_AGENT:-$mount_agent_default}" =~ ^(true|on|1)$ ]] ; then
   if [[ -z "${BUILDKITE_AGENT_BINARY_PATH:-}" ]] ; then
     if ! command -v buildkite-agent >/dev/null 2>&1 ; then
       echo -n "+++ 🚨 Failed to find buildkite-agent in PATH to mount into container, "
@@ -229,30 +229,30 @@ if [[ -n "${BUILDKITE_AGENT_BINARY_PATH:-}" ]] ; then
   )
 fi
 
-# Parse extra env vars and add them to the docker args
+# Parse extra env vars and add them to the podman args
 while IFS='=' read -r name _ ; do
-  if [[ $name =~ ^(BUILDKITE_PLUGIN_DOCKER_ENVIRONMENT_[0-9]+) ]] ; then
+  if [[ $name =~ ^(BUILDKITE_PLUGIN_PODMAN_ENVIRONMENT_[0-9]+) ]] ; then
     args+=( "--env" "${!name}" )
   fi
 done < <(env | sort)
 
-# Parse host mappings and add them to the docker args
+# Parse host mappings and add them to the podman args
 while IFS='=' read -r name _ ; do
-  if [[ $name =~ ^(BUILDKITE_PLUGIN_DOCKER_ADD_HOST_[0-9]+) ]] ; then
+  if [[ $name =~ ^(BUILDKITE_PLUGIN_PODMAN_ADD_HOST_[0-9]+) ]] ; then
     args+=( "--add-host" "${!name}" )
   fi
 done < <(env | sort)
 
 # Privileged container
-if [[ "${BUILDKITE_PLUGIN_DOCKER_PRIVILEGED:-false}" =~ ^(true|on|1)$ ]] ; then
+if [[ "${BUILDKITE_PLUGIN_PODMAN_PRIVILEGED:-false}" =~ ^(true|on|1)$ ]] ; then
     args+=( "--privileged" )
 fi
 
 # Propagate all environment variables into the container if requested
-if [[ "${BUILDKITE_PLUGIN_DOCKER_PROPAGATE_ENVIRONMENT:-false}" =~ ^(true|on|1)$ ]] ; then
+if [[ "${BUILDKITE_PLUGIN_PODMAN_PROPAGATE_ENVIRONMENT:-false}" =~ ^(true|on|1)$ ]] ; then
   if [[ -n "${BUILDKITE_ENV_FILE:-}" ]] ; then
-    # Read in the env file and convert to --env params for docker
-    # This is because --env-file doesn't support newlines or quotes per https://docs.docker.com/compose/env-file/#syntax-rules
+    # Read in the env file and convert to --env params for podman
+    # This is because --env-file doesn't support newlines or quotes per https://docs.podman.com/compose/env-file/#syntax-rules
     while read -r var; do
       args+=( --env "${var%%=*}" )
     done < "$BUILDKITE_ENV_FILE"
@@ -261,35 +261,35 @@ if [[ "${BUILDKITE_PLUGIN_DOCKER_PROPAGATE_ENVIRONMENT:-false}" =~ ^(true|on|1)$
   fi
 fi
 
-if [[ "${BUILDKITE_PLUGIN_DOCKER_ALWAYS_PULL:-false}" =~ ^(true|on|1)$ ]] ; then
-  echo "--- :docker: Pulling ${BUILDKITE_PLUGIN_DOCKER_IMAGE}"
-  if ! retry "${BUILDKITE_PLUGIN_DOCKER_PULL_RETRIES:-3}" \
-       docker pull "${BUILDKITE_PLUGIN_DOCKER_IMAGE}" ; then
-    echo "!!! :docker: Pull failed."
+if [[ "${BUILDKITE_PLUGIN_PODMAN_ALWAYS_PULL:-false}" =~ ^(true|on|1)$ ]] ; then
+  echo "--- :podman: Pulling ${BUILDKITE_PLUGIN_PODMAN_IMAGE}"
+  if ! retry "${BUILDKITE_PLUGIN_PODMAN_PULL_RETRIES:-3}" \
+       podman pull "${BUILDKITE_PLUGIN_PODMAN_IMAGE}" ; then
+    echo "!!! :podman: Pull failed."
     exit $retry_exit_status
   fi
 fi
 
 # Parse network and create it if it don't exist.
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_NETWORK:-}" ]] ; then
-  DOCKER_NETWORK_ID=$(docker network ls --quiet --filter "name=${BUILDKITE_PLUGIN_DOCKER_NETWORK}")
-  if [[ -z ${DOCKER_NETWORK_ID} ]] ; then
-    echo "creating network ${BUILDKITE_PLUGIN_DOCKER_NETWORK}"
-    docker network create "${BUILDKITE_PLUGIN_DOCKER_NETWORK}"
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_NETWORK:-}" ]] ; then
+  podman_NETWORK_ID=$(podman network ls --quiet --filter "name=${BUILDKITE_PLUGIN_PODMAN_NETWORK}")
+  if [[ -z ${podman_NETWORK_ID} ]] ; then
+    echo "creating network ${BUILDKITE_PLUGIN_PODMAN_NETWORK}"
+    podman network create "${BUILDKITE_PLUGIN_PODMAN_NETWORK}"
   else
-    echo "docker network ${BUILDKITE_PLUGIN_DOCKER_NETWORK} already exists"
+    echo "podman network ${BUILDKITE_PLUGIN_PODMAN_NETWORK} already exists"
   fi
-  args+=("--network" "${BUILDKITE_PLUGIN_DOCKER_NETWORK:-}")
+  args+=("--network" "${BUILDKITE_PLUGIN_PODMAN_NETWORK:-}")
 fi
 
-# Support docker run --runtime
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_RUNTIME:-}" ]] ; then
-  args+=("--runtime" "${BUILDKITE_PLUGIN_DOCKER_RUNTIME:-}")
+# Support podman run --runtime
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_RUNTIME:-}" ]] ; then
+  args+=("--runtime" "${BUILDKITE_PLUGIN_PODMAN_RUNTIME:-}")
 fi
 
-# Support docker run --ipc
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_IPC:-}" ]] ; then
-  args+=("--ipc" "${BUILDKITE_PLUGIN_DOCKER_IPC:-}")
+# Support podman run --ipc
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_IPC:-}" ]] ; then
+  args+=("--ipc" "${BUILDKITE_PLUGIN_PODMAN_IPC:-}")
 fi
 
 shell=()
@@ -300,37 +300,37 @@ if [[ -n "${BUILDKITE_COMMAND}" ]]; then
 fi
 
 # Handle setting of shm size if provided
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_SHM_SIZE:-}" ]]; then
-  args+=("--shm-size" "${BUILDKITE_PLUGIN_DOCKER_SHM_SIZE}")
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_SHM_SIZE:-}" ]]; then
+  args+=("--shm-size" "${BUILDKITE_PLUGIN_PODMAN_SHM_SIZE}")
 fi
 
 # Handle setting of cpus if provided
-if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CPUS:-}" ]]; then
-  args+=("--cpus=${BUILDKITE_PLUGIN_DOCKER_CPUS}")
+if [[ -n "${BUILDKITE_PLUGIN_PODMAN_CPUS:-}" ]]; then
+  args+=("--cpus=${BUILDKITE_PLUGIN_PODMAN_CPUS}")
 fi
 
 # Handle entrypoint if set (or empty), and default shell to disabled
-if [[ "${BUILDKITE_PLUGIN_DOCKER_ENTRYPOINT-false}" != "false" ]] ; then
-  args+=("--entrypoint" "${BUILDKITE_PLUGIN_DOCKER_ENTRYPOINT:-}")
+if [[ "${BUILDKITE_PLUGIN_PODMAN_ENTRYPOINT-false}" != "false" ]] ; then
+  args+=("--entrypoint" "${BUILDKITE_PLUGIN_PODMAN_ENTRYPOINT:-}")
   shell_disabled=1
 fi
 
 # Handle shell being disabled
-if [[ "${BUILDKITE_PLUGIN_DOCKER_SHELL:-}" =~ ^(false|off|0)$ ]] ; then
+if [[ "${BUILDKITE_PLUGIN_PODMAN_SHELL:-}" =~ ^(false|off|0)$ ]] ; then
   shell_disabled=1
 
 # Show a helpful error message if a string version of shell is used
-elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_SHELL:-}" ]] ; then
-  echo -n "🚨 The Docker Plugin’s shell configuration option can no longer be specified as a string, "
+elif [[ -n "${BUILDKITE_PLUGIN_PODMAN_SHELL:-}" ]] ; then
+  echo -n "🚨 The podman Plugin’s shell configuration option can no longer be specified as a string, "
   echo -n "but only as an array. Please update your pipeline.yml to use an array, "
   echo "for example: [\"/bin/sh\", \"-e\", \"-u\"]."
   echo
-  echo -n "Note that the docker plugin will infer a shell if one is required, so you might be able to remove"
+  echo -n "Note that the podman plugin will infer a shell if one is required, so you might be able to remove"
   echo "the option entirely"
   exit 1
 
 # Handle shell being provided as a string or list
-elif plugin_read_list_into_result BUILDKITE_PLUGIN_DOCKER_SHELL ; then
+elif plugin_read_list_into_result BUILDKITE_PLUGIN_PODMAN_SHELL ; then
   shell_disabled=''
   for arg in "${result[@]}" ; do
     shell+=("$arg")
@@ -341,7 +341,7 @@ fi
 args+=("--label" "com.buildkite.job-id=${BUILDKITE_JOB_ID}")
 
 # Add the image in before the shell and command
-args+=("${BUILDKITE_PLUGIN_DOCKER_IMAGE}")
+args+=("${BUILDKITE_PLUGIN_PODMAN_IMAGE}")
 
 # Set a default shell if one is needed
 if [[ -z $shell_disabled ]] && [[ ${#shell[@]} -eq 0 ]] ; then
@@ -355,7 +355,7 @@ fi
 command=()
 
 # Parse plugin command if provided
-if plugin_read_list_into_result BUILDKITE_PLUGIN_DOCKER_COMMAND ; then
+if plugin_read_list_into_result BUILDKITE_PLUGIN_PODMAN_COMMAND ; then
   for arg in "${result[@]}" ; do
     command+=("$arg")
   done
@@ -366,7 +366,7 @@ if [[ ${#command[@]} -gt 0 ]] && [[ -n "${BUILDKITE_COMMAND}" ]] ; then
   exit 1
 fi
 
-# Assemble the shell and command arguments into the docker arguments
+# Assemble the shell and command arguments into the podman arguments
 
 if [[ ${#shell[@]} -gt 0 ]] ; then
   for shell_arg in "${shell[@]}" ; do
@@ -388,13 +388,13 @@ elif [[ ${#command[@]} -gt 0 ]] ; then
   done
 fi
 
-echo "--- :docker: Running command in ${BUILDKITE_PLUGIN_DOCKER_IMAGE}"
-echo -ne '\033[90m$\033[0m docker run ' >&2
+echo "--- :podman: Running command in ${BUILDKITE_PLUGIN_PODMAN_IMAGE}"
+echo -ne '\033[90m$\033[0m podman run ' >&2
 
 # Print all the arguments, with a space after, properly shell quoted
 printf "%q " "${args[@]}"
 echo
 
 # Don't convert paths on gitbash on windows, as that can mangle user paths and cmd options.
-# See https://github.com/buildkite-plugins/docker-buildkite-plugin/issues/81 for more information.
-( if is_windows ; then export MSYS_NO_PATHCONV=1; fi && docker run "${args[@]}" )
+# See https://github.com/buildkite-plugins/podman-buildkite-plugin/issues/81 for more information.
+( if is_windows ; then export MSYS_NO_PATHCONV=1; fi && podman run "${args[@]}" )
