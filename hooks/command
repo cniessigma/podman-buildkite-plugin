@@ -117,7 +117,7 @@ fi
 
 # By default, mount $PWD onto $WORKDIR
 if [[ "${BUILDKITE_PLUGIN_PODMAN_MOUNT_CHECKOUT:-on}" =~ ^(true|on|1)$ ]] ; then
-  args+=( "--volume" "${pwd_default}:${workdir}" )
+  args+=( "--mount" "type=bind,src=${pwd_default},dst=${workdir},relabel=shared,U=true" )
 fi
 
 # Parse volumes (and deprecated mounts) and add them to the podman args
